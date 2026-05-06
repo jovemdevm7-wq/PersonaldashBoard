@@ -7,16 +7,59 @@ import Link from 'next/link';
 import AddExerciseModal from '@/components/AddExerciseModal';
 import { generateWorkoutPDFGreen } from '@/lib/pdf-utils';
 
+type SerieObj = { peso?: number | string; repeticoes?: number | string };
+type SeriesValue = number | string | SerieObj[];
+type RepValue = number | string | SerieObj | SerieObj[];
+
 interface Exercicio {
   exercicio: string;
   gif: string;
-  repeticoes: number | string;
-  series: number;
+  repeticoes: RepValue;
+  series: SeriesValue;
+}
+
+function getSeriesCount(series: SeriesValue): number | string {
+  if (Array.isArray(series)) return series.length;
+  return series ?? 0;
+}
+
+function hasAnyPeso(series?: SeriesValue): boolean {
+  if (!Array.isArray(series)) return false;
+  return series.some(s => s && typeof s === 'object' && s.peso !== undefined && s.peso !== null && s.peso !== '' && Number(s.peso) > 0);
+}
+
+function formatRepeticoes(reps: RepValue, series?: SeriesValue): string {
+  if (Array.isArray(series) && series.length > 0) {
+    const repsList = series.map(s => s?.repeticoes ?? '');
+    const pesoList = series.map(s => s?.peso ?? '');
+    const allRepsEqual = repsList.every(r => r === repsList[0]);
+    const allPesoEqual = pesoList.every(p => p === pesoList[0]);
+    const hasPeso = hasAnyPeso(series);
+
+    if (allRepsEqual && allPesoEqual) {
+      return hasPeso ? `${repsList[0]} reps · ${pesoList[0]}kg` : `${repsList[0]} reps`;
+    }
+    if (!hasPeso) {
+      return `${repsList.join(' / ')} reps`;
+    }
+    return series.map(s => {
+      const r = s?.repeticoes ?? '';
+      const p = s?.peso;
+      return p !== undefined && p !== null && p !== '' && Number(p) > 0 ? `${r}×${p}kg` : `${r}`;
+    }).join(' / ');
+  }
+  if (reps && typeof reps === 'object' && !Array.isArray(reps)) {
+    const r = reps.repeticoes ?? '';
+    const p = reps.peso;
+    return p ? `${r} reps · ${p}kg` : `${r} reps`;
+  }
+  return `${reps ?? ''} reps`;
 }
 
 interface TreinoDiario {
   exercicios: Exercicio[];
-  nome: string;
+  nome?: string;
+  dia?: string;
 }
 
 interface TreinoData {
@@ -226,8 +269,8 @@ export default function Dashboard() {
               gif: ex.gif,
               description: '' // Pode adicionar descrição se disponível
             },
-            sets: ex.series,
-            reps: ex.repeticoes,
+            sets: getSeriesCount(ex.series),
+            reps: formatRepeticoes(ex.repeticoes, ex.series),
             group: 'Strength' // Ajustar conforme necessário
           }))
         };
@@ -430,7 +473,7 @@ export default function Dashboard() {
                                   <span className="inline-flex items-center gap-2">
                                     <span className="text-gray-900">{dia.nome}</span>
                                     <button
-                                      onClick={() => handleEditStart(index, dia.nome)}
+                                      onClick={() => handleEditStart(index, dia.nome ?? '')}
                                       className="text-gray-500 hover:text-gray-700 p-1 hover:bg-gray-100 rounded"
                                       title="Editar nome do treino"
                                     >
@@ -466,7 +509,7 @@ export default function Dashboard() {
                                         {exercicio.exercicio}
                                       </p>
                                       <p className="text-xs text-gray-500">
-                                        {exercicio.series} séries × {exercicio.repeticoes} reps
+                                        {getSeriesCount(exercicio.series)} séries · {formatRepeticoes(exercicio.repeticoes, exercicio.series)}
                                       </p>
                                     </div>
                                     <div className="flex items-start">

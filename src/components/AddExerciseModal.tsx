@@ -20,6 +20,7 @@ export default function AddExerciseModal({ isOpen, onClose, onConfirm }: AddExer
   const [exercicioSelecionado, setExercicioSelecionado] = useState<Exercicio | null>(null);
   const [series, setSeries] = useState<string>('');
   const [repeticoes, setRepeticoes] = useState<string>('');
+  const [peso, setPeso] = useState<string>('');
   const [exerciciosDoGrupo, setExerciciosDoGrupo] = useState<Exercicio[]>([]);
   const [filtroExercicio, setFiltroExercicio] = useState<string>('');
 
@@ -57,11 +58,20 @@ export default function AddExerciseModal({ isOpen, onClose, onConfirm }: AddExer
   const handleConfirmar = () => {
     if (!exercicioSelecionado || !series || !repeticoes) return;
 
+    const numSeries = parseInt(series);
+    const numReps = parseInt(repeticoes);
+    const numPeso = peso ? parseFloat(peso) : 0;
+
+    const seriesArray = Array.from({ length: numSeries }, () => ({
+      peso: numPeso,
+      repeticoes: numReps,
+    }));
+
     const exercicioCompleto = {
       exercicio: exercicioSelecionado.exercicio,
       gif: exercicioSelecionado.gif,
-      series: parseInt(series),
-      repeticoes: parseInt(repeticoes),
+      series: seriesArray,
+      repeticoes: numReps,
     };
 
     onConfirm(exercicioCompleto);
@@ -74,6 +84,7 @@ export default function AddExerciseModal({ isOpen, onClose, onConfirm }: AddExer
     setExercicioSelecionado(null);
     setSeries('');
     setRepeticoes('');
+    setPeso('');
     setExerciciosDoGrupo([]);
     setFiltroExercicio('');
     onClose();
@@ -90,6 +101,7 @@ export default function AddExerciseModal({ isOpen, onClose, onConfirm }: AddExer
       setExercicioSelecionado(null);
       setSeries('');
       setRepeticoes('');
+      setPeso('');
     }
   };
 
@@ -217,6 +229,21 @@ export default function AddExerciseModal({ isOpen, onClose, onConfirm }: AddExer
                   placeholder="Ex: 12"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Peso (kg) <span className="text-gray-400 font-normal">— opcional</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={peso}
+                  onChange={(e) => setPeso(e.target.value)}
+                  placeholder="Ex: 18 (deixe vazio se for peso do corpo)"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 />
               </div>
             </div>

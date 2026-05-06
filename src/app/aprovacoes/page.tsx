@@ -20,6 +20,44 @@ interface ModalData {
   treino: PendingTreino | null;
 }
 
+function getSeriesCount(series: any): number | string {
+  if (Array.isArray(series)) return series.length;
+  return series ?? 0;
+}
+
+function hasAnyPeso(series: any): boolean {
+  if (!Array.isArray(series)) return false;
+  return series.some((s: any) => s && typeof s === 'object' && s.peso !== undefined && s.peso !== null && s.peso !== '' && Number(s.peso) > 0);
+}
+
+function formatRepeticoes(reps: any, series?: any): string {
+  if (Array.isArray(series) && series.length > 0) {
+    const repsList = series.map((s: any) => s?.repeticoes ?? '');
+    const pesoList = series.map((s: any) => s?.peso ?? '');
+    const allRepsEqual = repsList.every((r: any) => r === repsList[0]);
+    const allPesoEqual = pesoList.every((p: any) => p === pesoList[0]);
+    const hasPeso = hasAnyPeso(series);
+
+    if (allRepsEqual && allPesoEqual) {
+      return hasPeso ? `${repsList[0]} reps · ${pesoList[0]}kg` : `${repsList[0]} reps`;
+    }
+    if (!hasPeso) {
+      return `${repsList.join(' / ')} reps`;
+    }
+    return series.map((s: any) => {
+      const r = s?.repeticoes ?? '';
+      const p = s?.peso;
+      return p !== undefined && p !== null && p !== '' && Number(p) > 0 ? `${r}×${p}kg` : `${r}`;
+    }).join(' / ');
+  }
+  if (reps && typeof reps === 'object' && !Array.isArray(reps)) {
+    const r = reps.repeticoes ?? '';
+    const p = reps.peso;
+    return p ? `${r} reps · ${p}kg` : `${r} reps`;
+  }
+  return `${reps ?? ''} reps`;
+}
+
 export default function Aprovacoes() {
   const router = useRouter();
   const [pendentes, setPendentes] = useState<PendingTreino[]>([]);
@@ -378,7 +416,7 @@ export default function Aprovacoes() {
                                 {exercicio.exercicio}
                               </p>
                               <p className="text-xs text-gray-500">
-                                {exercicio.series} séries × {exercicio.repeticoes} reps
+                                {getSeriesCount(exercicio.series)} séries · {formatRepeticoes(exercicio.repeticoes, exercicio.series)}
                               </p>
                             </div>
                           </div>
