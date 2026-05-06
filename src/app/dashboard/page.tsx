@@ -93,6 +93,60 @@ export default function Dashboard() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [editingSeries, setEditingSeries] = useState<{dayIndex: number, exerciseIndex: number} | null>(null);
+  const [seriesDraft, setSeriesDraft] = useState<SerieObj[]>([]);
+
+  const startEditSeries = (dayIndex: number, exerciseIndex: number, exercicio: Exercicio) => {
+    let draft: SerieObj[] = [];
+    if (Array.isArray(exercicio.series)) {
+      draft = exercicio.series.map(s => ({
+        peso: s?.peso ?? '',
+        repeticoes: s?.repeticoes ?? (typeof exercicio.repeticoes === 'number' || typeof exercicio.repeticoes === 'string' ? exercicio.repeticoes : ''),
+      }));
+    } else {
+      const count = Number(exercicio.series) || 1;
+      const baseReps = typeof exercicio.repeticoes === 'number' || typeof exercicio.repeticoes === 'string' ? exercicio.repeticoes : '';
+      draft = Array.from({ length: count }, () => ({ peso: '', repeticoes: baseReps }));
+    }
+    setSeriesDraft(draft);
+    setEditingSeries({ dayIndex, exerciseIndex });
+  };
+
+  const cancelEditSeries = () => {
+    setEditingSeries(null);
+    setSeriesDraft([]);
+  };
+
+  const updateDraftSerie = (idx: number, field: 'peso' | 'repeticoes', value: string) => {
+    setSeriesDraft(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s));
+  };
+
+  const addDraftSerie = () => {
+    const last = seriesDraft[seriesDraft.length - 1];
+    setSeriesDraft(prev => [...prev, { peso: last?.peso ?? '', repeticoes: last?.repeticoes ?? '' }]);
+  };
+
+  const removeDraftSerie = (idx: number) => {
+    setSeriesDraft(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const saveEditSeries = () => {
+    if (!editingSeries || !userData || !userData.treinoData.treino) return;
+    const cleaned: SerieObj[] = seriesDraft.map(s => ({
+      peso: s.peso === '' || s.peso === undefined || s.peso === null ? 0 : Number(s.peso),
+      repeticoes: s.repeticoes === '' || s.repeticoes === undefined || s.repeticoes === null ? 0 : Number(s.repeticoes),
+    }));
+    const updated = { ...userData };
+    if (updated.treinoData.treino) {
+      const ex = updated.treinoData.treino[editingSeries.dayIndex].exercicios[editingSeries.exerciseIndex];
+      ex.series = cleaned;
+      const firstReps = cleaned[0]?.repeticoes;
+      if (firstReps !== undefined) ex.repeticoes = firstReps;
+      setUserData(updated);
+      setHasUnsavedChanges(true);
+    }
+    cancelEditSeries();
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -485,13 +539,14 @@ export default function Dashboard() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                               {exerciciosDoDia.filter(exercicio => exercicio !== null && exercicio !== undefined).map((exercicio, exercIndex) => {
+                                const isEditingThisSeries = editingSeries?.dayIndex === index && editingSeries?.exerciseIndex === exercIndex;
                                 console.log('Exercicio renderizado:', exercicio.exercicio, 'GIF:', exercicio.gif);
                                 return (
                                 <div key={exercIndex} className="bg-white border border-gray-200 p-4 rounded-lg hover:shadow-sm transition-shadow group">
                                   <div className="flex items-start gap-3">
                                     {exercicio.gif && exercicio.gif.trim() !== '' ? (
-                                      <Image 
-                                        src={exercicio.gif.trim()} 
+                                      <Image
+                                        src={exercicio.gif.trim()}
                                         alt={exercicio.exercicio}
                                         width={48}
                                         height={48}
@@ -512,7 +567,16 @@ export default function Dashboard() {
                                         {getSeriesCount(exercicio.series)} séries · {formatRepeticoes(exercicio.repeticoes, exercicio.series)}
                                       </p>
                                     </div>
-                                    <div className="flex items-start">
+                                    <div className="flex items-start gap-1">
+                                      {!isEditingThisSeries && (
+                                        <button
+                                          onClick={() => startEditSeries(index, exercIndex, exercicio)}
+                                          className="text-gray-400 hover:text-gray-700 p-1 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                          title="Editar séries / peso"
+                                        >
+                                          <Edit3 className="w-4 h-4" />
+                                        </button>
+                                      )}
                                       {deletingExercise?.dayIndex === index && deletingExercise?.exerciseIndex === exercIndex ? (
                                         <div className="flex gap-1">
                                           <button
@@ -531,16 +595,80 @@ export default function Dashboard() {
                                           </button>
                                         </div>
                                       ) : (
-                                        <button
-                                          onClick={() => setDeletingExercise({dayIndex: index, exerciseIndex: exercIndex})}
-                                          className="text-gray-400 hover:text-red-600 p-1 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                          title="Excluir exercício"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        !isEditingThisSeries && (
+                                          <button
+                                            onClick={() => setDeletingExercise({dayIndex: index, exerciseIndex: exercIndex})}
+                                            className="text-gray-400 hover:text-red-600 p-1 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="Excluir exercício"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        )
                                       )}
                                     </div>
                                   </div>
+
+                                  {isEditingThisSeries && (
+                                    <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                      <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 px-1">
+                                        <div className="col-span-2">Série</div>
+                                        <div className="col-span-4">Reps</div>
+                                        <div className="col-span-5">Peso (kg)</div>
+                                        <div className="col-span-1"></div>
+                                      </div>
+                                      {seriesDraft.map((s, idx) => (
+                                        <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                                          <div className="col-span-2 text-sm text-gray-700">{idx + 1}</div>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={s.repeticoes ?? ''}
+                                            onChange={e => updateDraftSerie(idx, 'repeticoes', e.target.value)}
+                                            className="col-span-4 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-500"
+                                            placeholder="12"
+                                          />
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.5"
+                                            value={s.peso ?? ''}
+                                            onChange={e => updateDraftSerie(idx, 'peso', e.target.value)}
+                                            className="col-span-5 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-500"
+                                            placeholder="0"
+                                          />
+                                          <button
+                                            onClick={() => removeDraftSerie(idx)}
+                                            disabled={seriesDraft.length <= 1}
+                                            className="col-span-1 text-gray-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed p-1"
+                                            title="Remover série"
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                      <button
+                                        onClick={addDraftSerie}
+                                        className="w-full text-xs text-gray-600 hover:text-gray-900 py-1.5 border border-dashed border-gray-300 rounded hover:bg-gray-50 flex items-center justify-center gap-1"
+                                      >
+                                        <Plus className="w-3 h-3" /> Adicionar série
+                                      </button>
+                                      <div className="flex justify-end gap-2 pt-2">
+                                        <button
+                                          onClick={cancelEditSeries}
+                                          className="px-3 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                                        >
+                                          Cancelar
+                                        </button>
+                                        <button
+                                          onClick={saveEditSeries}
+                                          disabled={seriesDraft.length === 0}
+                                          className="px-3 py-1 text-xs bg-gray-900 text-white rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                        >
+                                          <Check className="w-3 h-3" /> Salvar
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               );
                               })}
